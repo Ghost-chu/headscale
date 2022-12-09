@@ -203,6 +203,27 @@ func (h *Headscale) handleRegisterCommon(
 
 	// The machine is already registered, so we need to pass through reauth or key update.
 	if machine != nil {
+		// (juan): For a while we had a bug where we were not storing the MachineKey for the nodes using the TS2021,
+		// due to a misunderstanding of the protocol https://github.com/juanfont/headscale/issues/1054
+		// So if we have a not valid MachineKey (but we were able to fetch the machine with the NodeKeys), we update it.
+		var storedMachineKey key.MachinePublic
+		err = storedMachineKey.UnmarshalText(
+			[]byte(MachinePublicKeyEnsurePrefix(machine.MachineKey)),
+		)
+		if err != nil || storedMachineKey.IsZero() {
+			machine.MachineKey = MachinePublicKeyStripPrefix(machineKey)
+			if err := h.db.Save(&machine).Error; err != nil {
+				log.Error().
+					Caller().
+					Str("func", "RegistrationHandler").
+					Str("machine", machine.Hostname).
+					Err(err).
+					Msg("Error saving machine key to database")
+
+				return
+			}
+		}
+
 		// If the NodeKey stored in headscale is the same as the key presented in a registration
 		// request, then we have a node that is either:
 		// - Trying to log out (sending a expiry in the past)
