@@ -414,13 +414,15 @@ func (h *Headscale) GetMachineByNodeKey(
 	return &machine, nil
 }
 
-// GetMachineByAnyNodeKey finds a Machine by its current NodeKey or the old one, and returns the Machine struct.
-func (h *Headscale) GetMachineByAnyNodeKey(
-	nodeKey key.NodePublic, oldNodeKey key.NodePublic,
+// GetMachineByAnyNodeKey finds a Machine by its MachineKey, its current NodeKey or the old one, and returns the Machine struct.
+func (h *Headscale) GetMachineByAnyKey(
+	machineKey key.MachinePublic, nodeKey key.NodePublic, oldNodeKey key.NodePublic,
 ) (*Machine, error) {
 	machine := Machine{}
-	if result := h.db.Preload("Namespace").First(&machine, "node_key = ? OR node_key = ?",
-		NodePublicKeyStripPrefix(nodeKey), NodePublicKeyStripPrefix(oldNodeKey)); result.Error != nil {
+	if result := h.db.Preload("Namespace").First(&machine, "machine_key = ? OR node_key = ? OR node_key = ?",
+		MachinePublicKeyStripPrefix(machineKey),
+		NodePublicKeyStripPrefix(nodeKey),
+		NodePublicKeyStripPrefix(oldNodeKey)); result.Error != nil {
 		return nil, result.Error
 	}
 
