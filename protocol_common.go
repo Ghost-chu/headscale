@@ -589,6 +589,7 @@ func (h *Headscale) handleMachineLogOutCommon(
 
 	resp.AuthURL = ""
 	resp.MachineAuthorized = false
+	resp.NodeKeyExpired = true
 	resp.User = *machine.Namespace.toUser()
 	respBody, err := h.marshalResponse(resp, machineKey, isNoise)
 	if err != nil {
@@ -743,18 +744,21 @@ func (h *Headscale) handleMachineExpiredCommon(
 ) {
 	resp := tailcfg.RegisterResponse{}
 
-	// The client has registered before, but has expired
-	log.Debug().
-		Caller().
-		Bool("noise", isNoise).
-		Str("machine", machine.Hostname).
-		Msg("Machine registration has expired. Sending a authurl to register")
-
 	if registerRequest.Auth.AuthKey != "" {
 		h.handleAuthKeyCommon(writer, registerRequest, machineKey, isNoise)
 
 		return
 	}
+
+	// The client has registered before, but has expired or logged out
+	log.Debug().
+		Caller().
+		Bool("noise", isNoise).
+		Str("machine", machine.Hostname).
+		Str("machine_key", machineKey.ShortString()).
+		Str("node_key", registerRequest.NodeKey.ShortString()).
+		Str("node_key_old", registerRequest.OldNodeKey.ShortString()).
+		Msg("Machine registration has expired or logged out. Sending a auth url to register")
 
 	if h.oauth2Config != nil {
 		resp.AuthURL = fmt.Sprintf("%s/oidc/register/%s",
@@ -796,6 +800,9 @@ func (h *Headscale) handleMachineExpiredCommon(
 	log.Info().
 		Caller().
 		Bool("noise", isNoise).
+		Str("machine_key", machineKey.ShortString()).
+		Str("node_key", registerRequest.NodeKey.ShortString()).
+		Str("node_key_old", registerRequest.OldNodeKey.ShortString()).
 		Str("machine", machine.Hostname).
-		Msg("Auth URL for reauthenticate successfully sent")
+		Msg("Machine logged out. Sent AuthURL for reauthentication")
 }
