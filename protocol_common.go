@@ -201,7 +201,10 @@ func (h *Headscale) handleRegisterCommon(
 		return
 	}
 
-	// The machine is already registered, so we need to pass through reauth or key update.
+	// The machine is already in the DB. This could mean one of the following:
+	// - The machine is authenticated and ready to /map
+	// - We are doing a key refresh
+	// - The machine is logged out (or expired) and pending to be authorized. TODO(juan): We need to keep alive the connection here
 	if machine != nil {
 		// (juan): For a while we had a bug where we were not storing the MachineKey for the nodes using the TS2021,
 		// due to a misunderstanding of the protocol https://github.com/juanfont/headscale/issues/1054
@@ -227,7 +230,7 @@ func (h *Headscale) handleRegisterCommon(
 		// If the NodeKey stored in headscale is the same as the key presented in a registration
 		// request, then we have a node that is either:
 		// - Trying to log out (sending a expiry in the past)
-		// - A valid, registered machine, looking for the node map
+		// - A valid, registered machine, looking for /map
 		// - Expired machine wanting to reauthenticate
 		if machine.NodeKey == NodePublicKeyStripPrefix(registerRequest.NodeKey) {
 			// The client sends an Expiry in the past if the client is requesting to expire the key (aka logout)
@@ -239,7 +242,7 @@ func (h *Headscale) handleRegisterCommon(
 				return
 			}
 
-			// If machine is not expired, and is register, we have a already accepted this machine,
+			// If machine is not expired, and it is register, we have a already accepted this machine,
 			// let it proceed with a valid registration
 			if !machine.isExpired() {
 				h.handleMachineValidRegistrationCommon(writer, *machine, machineKey, isNoise)
@@ -262,7 +265,7 @@ func (h *Headscale) handleRegisterCommon(
 			return
 		}
 
-		// The machine has expired
+		// The machine has expired or is logged out
 		h.handleMachineExpiredCommon(writer, registerRequest, *machine, machineKey, isNoise)
 
 		machine.Expiry = &time.Time{}
@@ -684,7 +687,7 @@ func (h *Headscale) handleMachineRefreshKeyCommon(
 ) {
 	resp := tailcfg.RegisterResponse{}
 
-	log.Debug().
+	log.Info().
 		Caller().
 		Bool("noise", isNoise).
 		Str("machine", machine.Hostname).
