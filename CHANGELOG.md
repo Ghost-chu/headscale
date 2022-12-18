@@ -7,7 +7,9 @@
 - Reworked routing and added support for subnet router failover [#1024](https://github.com/juanfont/headscale/pull/1024)
 - Added an OIDC AllowGroups Configuration options and authorization check [#1041](https://github.com/juanfont/headscale/pull/1041)
 - Set `db_ssl` to false by default [#1052](https://github.com/juanfont/headscale/pull/1052)
+- Report if a machine is online in CLI more accurately [#1062](https://github.com/juanfont/headscale/pull/1062)
 - Fix duplicate nodes due to incorrect implementation of the protocol [#1058](https://github.com/juanfont/headscale/pull/1058)
+
 
 ## 0.17.1 (2022-12-05)
 
