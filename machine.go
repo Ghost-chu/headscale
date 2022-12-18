@@ -852,6 +852,12 @@ func (h *Headscale) RegisterMachineFromAuthCallback(
 		return nil, err
 	}
 
+	log.Debug().
+		Str("nodeKey", nodeKey.ShortString()).
+		Str("namespaceName", namespaceName).
+		Str("registrationMethod", registrationMethod).
+		Msg("Registering machine from API/CLI or auth callback")
+
 	if machineInterface, ok := h.registrationCache.Get(NodePublicKeyStripPrefix(nodeKey)); ok {
 		if registrationMachine, ok := machineInterface.(Machine); ok {
 			namespace, err := h.GetNamespace(namespaceName)
@@ -891,15 +897,31 @@ func (h *Headscale) RegisterMachineFromAuthCallback(
 // RegisterMachine is executed from the CLI to register a new Machine using its MachineKey.
 func (h *Headscale) RegisterMachine(machine Machine,
 ) (*Machine, error) {
-	log.Trace().
-		Caller().
+	log.Debug().
+		Str("machine", machine.Hostname).
 		Str("machine_key", machine.MachineKey).
+		Str("node_key", machine.NodeKey).
+		Str("namespace", machine.Namespace.Name).
 		Msg("Registering machine")
 
-	log.Trace().
-		Caller().
-		Str("machine", machine.Hostname).
-		Msg("Attempting to register machine")
+	// If the machine exists and we had already IPs for it, we just save it
+	// so we store the machine.Expire and machine.Nodekey that has been set when
+	// adding it to the registrationCache
+	if len(machine.IPAddresses) > 0 {
+		if err := h.db.Save(&machine).Error; err != nil {
+			return nil, fmt.Errorf("failed register existing machine in the database: %w", err)
+		}
+
+		log.Trace().
+			Caller().
+			Str("machine", machine.Hostname).
+			Str("machine_key", machine.MachineKey).
+			Str("node_key", machine.NodeKey).
+			Str("namespace", machine.Namespace.Name).
+			Msg("Machine authorized again")
+
+		return &machine, nil
+	}
 
 	h.ipAllocationMutex.Lock()
 	defer h.ipAllocationMutex.Unlock()

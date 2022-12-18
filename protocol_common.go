@@ -265,10 +265,17 @@ func (h *Headscale) handleRegisterCommon(
 			return
 		}
 
-		// The machine has expired or is logged out
-		h.handleMachineExpiredCommon(writer, registerRequest, *machine, machineKey, isNoise)
+		// The machine has expired or it is logged out
+		h.handleMachineExpiredOrLoggedOutCommon(writer, registerRequest, *machine, machineKey, isNoise)
 
+		// TODO(juan): RegisterRequest includes an Expiry time, that we could optionally use
 		machine.Expiry = &time.Time{}
+
+		// If we are here it means the client needs to be reauthorized,
+		// we need to make sure the NodeKey matches the one in the request
+		// TODO(juan): What happens when using fast user switching between two
+		// headscale-managed tailnets?
+		machine.NodeKey = NodePublicKeyStripPrefix(registerRequest.NodeKey)
 		h.registrationCache.Set(
 			NodePublicKeyStripPrefix(registerRequest.NodeKey),
 			*machine,
@@ -735,10 +742,10 @@ func (h *Headscale) handleMachineRefreshKeyCommon(
 		Str("node_key", registerRequest.NodeKey.ShortString()).
 		Str("old_node_key", registerRequest.OldNodeKey.ShortString()).
 		Str("machine", machine.Hostname).
-		Msg("Machine successfully refreshed")
+		Msg("Node key successfully refreshed")
 }
 
-func (h *Headscale) handleMachineExpiredCommon(
+func (h *Headscale) handleMachineExpiredOrLoggedOutCommon(
 	writer http.ResponseWriter,
 	registerRequest tailcfg.RegisterRequest,
 	machine Machine,
@@ -754,7 +761,7 @@ func (h *Headscale) handleMachineExpiredCommon(
 	}
 
 	// The client has registered before, but has expired or logged out
-	log.Debug().
+	log.Trace().
 		Caller().
 		Bool("noise", isNoise).
 		Str("machine", machine.Hostname).
@@ -800,7 +807,7 @@ func (h *Headscale) handleMachineExpiredCommon(
 			Msg("Failed to write response")
 	}
 
-	log.Info().
+	log.Trace().
 		Caller().
 		Bool("noise", isNoise).
 		Str("machine_key", machineKey.ShortString()).
